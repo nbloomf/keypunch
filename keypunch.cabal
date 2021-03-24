@@ -1,0 +1,86 @@
+cabal-version: 1.12
+
+-- This file has been generated from package.yaml by hpack version 0.31.2.
+--
+-- see: https://github.com/sol/hpack
+--
+-- hash: 597d07b31c1d550ba2a811cddaec5a895ca58c51c92d3018a08858843404f678
+
+name:           keypunch
+version:        0.0.1
+synopsis:       Low level PDF generation library
+description:    Please see the README on GitHub at <https://github.com/nbloomf/keypunch#readme>
+category:       PDF
+homepage:       https://github.com/nbloomf/keypunch#readme
+bug-reports:    https://github.com/nbloomf/keypunch/issues
+author:         Nathan Bloomfield
+maintainer:     nbloomf@gmail.com
+copyright:      Automattic, Inc
+license:        BSD3
+license-file:   LICENSE
+build-type:     Simple
+extra-source-files:
+    README.md
+    ChangeLog.md
+
+source-repository head
+  type: git
+  location: https://github.com/nbloomf/keypunch
+
+library
+  exposed-modules:
+      Data.Format.Pdf
+      Data.Format.Pdf.Decimal
+      Data.Format.Pdf.Document
+      Data.Format.Pdf.FromBytes
+      Data.Format.Pdf.Monad
+      Data.Format.Pdf.Object
+      Data.Format.Pdf.With
+  other-modules:
+      Paths_keypunch
+  hs-source-dirs:
+      src
+  build-depends:
+      QuickCheck >=2.14.2
+    , base >=4.7 && <5
+    , bytestring >=0.10.12.0
+    , containers >=0.6.2.1
+    , text >=1.2.4.1
+  default-language: Haskell2010
+
+executable keypunch-exe
+  main-is: Main.lhs
+  other-modules:
+      Paths_keypunch
+  hs-source-dirs:
+      app
+  ghc-options: -threaded -rtsopts -with-rtsopts=-N
+  build-depends:
+      QuickCheck >=2.14.2
+    , base >=4.7 && <5
+    , bytestring >=0.10.12.0
+    , containers >=0.6.2.1
+    , keypunch
+    , text >=1.2.4.1
+  default-language: Haskell2010
+
+test-suite keypunch-test
+  type: exitcode-stdio-1.0
+  main-is: Test.lhs
+  other-modules:
+      Data.Format.Pdf.Decimal.Test
+      Data.Format.Pdf.Object.Test
+      Paths_keypunch
+  hs-source-dirs:
+      test
+  ghc-options: -threaded -rtsopts -with-rtsopts=-N
+  build-depends:
+      QuickCheck >=2.14.2
+    , base >=4.7 && <5
+    , bytestring >=0.10.12.0
+    , containers >=0.6.2.1
+    , keypunch
+    , tasty >=1.0.1.1
+    , tasty-quickcheck >=0.10.1.1
+    , text >=1.2.4.1
+  default-language: Haskell2010

@@ -1,0 +1,50 @@
+name:                keypunch
+version:             0.0.1
+github:              "nbloomf/keypunch"
+license:             BSD3
+author:              "Nathan Bloomfield"
+maintainer:          "nbloomf@gmail.com"
+copyright:           "Automattic, Inc"
+
+extra-source-files:
+- README.md
+- ChangeLog.md
+
+synopsis:            Low level PDF generation library
+category:            PDF
+
+description:         Please see the README on GitHub at <https://github.com/nbloomf/keypunch#readme>
+
+dependencies:
+- base >= 4.7 && < 5
+- containers >=0.6.2.1
+- bytestring >=0.10.12.0
+- QuickCheck >=2.14.2
+- text >=1.2.4.1
+
+library:
+  source-dirs: src
+
+executables:
+  keypunch-exe:
+    main:                Main.lhs
+    source-dirs:         app
+    ghc-options:
+    - -threaded
+    - -rtsopts
+    - -with-rtsopts=-N
+    dependencies:
+    - keypunch
+
+tests:
+  keypunch-test:
+    main:                Test.lhs
+    source-dirs:         test
+    ghc-options:
+    - -threaded
+    - -rtsopts
+    - -with-rtsopts=-N
+    dependencies:
+    - keypunch
+    - tasty >=1.0.1.1
+    - tasty-quickcheck >=0.10.1.1
