@@ -13,6 +13,7 @@
 >   , withPdfVersion
 > 
 >   , IsPdfM(..)
+>   , getNextUUID
 > 
 >   , addObj
 >   , withObjRef
@@ -31,6 +32,7 @@
 > import           Control.Monad.IO.Class
 > import qualified Data.ByteString.Lazy as LBS
 > import           Data.IORef
+> import           Data.Word
 > 
 > import Data.Format.Pdf.FromBytes
 > import Data.Format.Pdf.Object
@@ -97,6 +99,7 @@ The state we track is fairly simple.
 >   , objCount   :: !Int       -- number of objects emitted so far
 >   , objSize    :: !Int       -- number of bytes emitted so far
 >   , rootObj    :: ObjRef     -- required in the trailer
+>   , nextUUID   :: Word64     -- for generating unique identifiers
 >   }
 > 
 > data PdfVersion
@@ -292,6 +295,12 @@ is required for byte counts of cross reference entries in the PDF spec.
 >   (<> "0000000000") . LBS.reverse . showLazyByteString
 > {-# INLINE padDec10 #-}
 
+> getNextUUID :: ( IsPdfM m ) => m Name
+> getNextUUID = do
+>   uuid <- getsPdfSt nextUUID
+>   mutatesPdfSt $ \st -> st { nextUUID = 1 + nextUUID st }
+>   return $ Name $ "u" <> showLazyByteString uuid
+
 
 
 
@@ -317,6 +326,7 @@ fiddly, so we only expose a handful of well behaved options.
 >     initPdfSt = PdfSt
 >       { pdfVersion = PdfVersion_1_7
 >       , rootObj    = ObjRef 1
+>       , nextUUID   = 0
 >       , objects    = mempty
 >       , objCount   = 1
 >       , objSize    = 0

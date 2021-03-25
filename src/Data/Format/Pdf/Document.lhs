@@ -65,7 +65,7 @@
 
 > data Pages = Pages
 >   { subPages       :: [Either Page Pages]
->   , pagesResources :: M.Map Name Obj
+>   , pagesResources :: Resources
 >   }
 > 
 > emptyPages :: Pages
@@ -97,9 +97,9 @@
 >       , if isRoot
 >           then []
 >           else [ ( "Parent", indRef catRef ) ]
->       , if M.null (pagesResources pages)
+>       , if isEmptyResources (pagesResources pages)
 >           then []
->           else [ ( "Resources", dict (pagesResources pages) ) ]
+>           else [ ( "Resources", makeResourceObject (pagesResources pages) ) ]
 >       ]
 > 
 >   withObjRef mkObj $ \pagesRef -> do
@@ -129,7 +129,7 @@
 
 > data Page = Page
 >   { pageContents  :: [ObjRef]
->   , pageResources :: M.Map Name Obj
+>   , pageResources :: Resources
 >   }
 > 
 > emptyPage :: Page
@@ -154,9 +154,9 @@
 >         , ( "Parent", indRef pagesRef )
 >         , ( "Contents", array $ map indRef refs )
 >         ]
->       , if M.null (pageResources page)
+>       , if isEmptyResources (pageResources page)
 >           then []
->           else [ ( "Resources", dict (pageResources page) ) ]
+>           else [ ( "Resources", makeResourceObject (pageResources page) ) ]
 >       ]
 > 
 >   let refs = pageContents page
@@ -174,15 +174,43 @@
 
 
 
+> data Resources = Resources
+>   { resFont :: M.Map Name Obj
+>   }
+
+> instance Semigroup Resources where
+>   res1 <> res2 = Resources
+>     { resFont = (resFont res1) <> (resFont res2)
+>     }
+> 
+> instance Monoid Resources where
+>   mempty = Resources
+>     { resFont = mempty
+>     }
+> 
+> isEmptyResources :: Resources -> Bool
+> isEmptyResources res = and
+>   [ M.null $ resFont res
+>   ]
+> 
+> makeResourceObject :: Resources -> Obj
+> makeResourceObject res = dict'
+>   [ ( "Font", dict $ resFont res )
+>   ]
+
+
+
+
+
 > class HasResources m where
->   updateResources :: (M.Map Name Obj -> M.Map Name Obj) -> m ()
+>   updateResources :: (Resources -> Resources) -> m ()
 > 
 > instance
 >   ( MonadIO m
 >   ) => HasResources (Pages :> m)
 >   where
 >     updateResources
->       :: (M.Map Name Obj -> M.Map Name Obj) -> (Pages :> m) ()
+>       :: (Resources -> Resources) -> (Pages :> m) ()
 >     updateResources f = mutateWith $ \st ->
 >       st { pagesResources = f (pagesResources st) }
 > 
@@ -191,11 +219,18 @@
 >   ) => HasResources (Page :> m)
 >   where
 >     updateResources
->       :: (M.Map Name Obj -> M.Map Name Obj) -> (Page :> m) ()
+>       :: (Resources -> Resources) -> (Page :> m) ()
 >     updateResources f = mutateWith $ \st ->
 >       st { pageResources = f (pageResources st) }
 
-
+> addFont
+>   :: ( IsPdfM m, HasResources m )
+>   => ObjRef -> m Name
+> addFont ref = do
+>   name <- getNextUUID
+>   updateResources $ \res -> res
+>     { resFont = M.insert name (indRef ref) (resFont res) }
+>   return name
 
 
 
@@ -226,10 +261,8 @@
 >       , ( "Subtype", name "Type1" )
 >       , ( "BaseFont", name "Helvetica" )
 >       ]
->     updateResources $ \res -> M.insert "Font" (dict' [( "F13", indRef fontRef)]) res
+>     fontName <- addFont fontRef
 >     addPage $ do
->       ref <- addObj $ stream' [] "BT /F13 12 Tf 288 720 Td (ABC) Tj ET 10 w 10 10 m 25 25 l S"
->       addContent ref
 >       ref2 <- draw $ do
 >         setLineWidth 10
 >         moveTo 100 100
@@ -254,8 +287,6 @@
 >       addPage $ do
 >         return ()
 
-BT /F13 12 Tf 288 720 Td (ABC) Tj ET
-
 
 
 > data GfxOperator
@@ -265,6 +296,11 @@ BT /F13 12 Tf 288 720 Td (ABC) Tj ET
 >   | StrokePath
 >   | CloseAndStrokePath
 >   | FillPath FillRule
+>   | BeginText
+>   | EndText
+>   | TextFont Name Int
+>   | AdvanceAndIndent Int Int
+>   | ShowText LBS.ByteString
 
 > data FillRule
 >   = Winding
@@ -307,6 +343,15 @@ BT /F13 12 Tf 288 720 Td (ABC) Tj ET
 >   FillPath rule -> case rule of
 >     Winding -> "f"
 >     EvenOdd -> "f*"
+>   BeginText -> "BT"
+>   EndText -> "ET"
+>   TextFont (Name str) size -> let (name, _) = escapeName str in mconcat
+>     [ "/" <> name, " ", showLazyByteString size, " Tf" ]
+>   AdvanceAndIndent x y -> mconcat
+>     [ showLazyByteString x, " ", showLazyByteString y, " Td" ]
+>   ShowText str ->
+>     let (str', _) = escapeLiteralString str
+>     in mconcat [ "(", str', ") Tj" ]
 
 > data Draw = Draw
 >   { gfxOperators :: [GfxOperator] -- TODO: list is the wrong thing for this
@@ -334,3 +379,36 @@ BT /F13 12 Tf 288 720 Td (ABC) Tj ET
 >       addObj $ stream' [] $ fromLazyByteString str
 > 
 >   in makeWith initDraw cmds addGfx
+
+> data Text = Text
+>   { txtOperators :: [GfxOperator] -- TODO: list is the wrong thing for this
+>   }
+
+> write
+>   :: forall m. ( IsPdfM m )
+>   => (Text :> Draw :> m) () -> (Draw :> m) ()
+> write cmds =
+>   let
+>     initWrite :: Text
+>     initWrite = Text
+>       { txtOperators = []
+>       }
+> 
+>     addTxt :: Text -> (Draw :> m) ()
+>     addTxt txt =
+>       mutateWith $ \gfx -> gfx
+>         { gfxOperators = concat [ gfxOperators gfx, [BeginText], txtOperators txt, [EndText] ] }
+> 
+>   in makeWith initWrite cmds addTxt
+
+> setFont :: ( IsPdfM m ) => Name -> Int -> (Text :> m) ()
+> setFont name size = mutateWith $ \st -> st
+>   { txtOperators = (txtOperators st) <> [TextFont name size] }
+> 
+> advanceAndIndent :: ( IsPdfM m ) => Int -> Int -> (Text :> m) ()
+> advanceAndIndent x y = mutateWith $ \st -> st
+>   { txtOperators = (txtOperators st) <> [AdvanceAndIndent x y] }
+> 
+> showText :: ( IsPdfM m ) => LBS.ByteString -> (Text :> m) ()
+> showText str = mutateWith $ \st -> st
+>   { txtOperators = (txtOperators st) <> [ShowText str] }

@@ -5,7 +5,7 @@
 > #-}
 > 
 > module Data.Format.Pdf.Object (
->     Obj(), Name(), ObjRef(..)
+>     Obj(), Name(..), ObjRef(..)
 >   , bool, int, real, real', nullObj
 >   , litString, hexString, name, stream, stream'
 >   , array, dict, dict', indRef
